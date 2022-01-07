@@ -1,0 +1,30 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  ConnectArn:
+    Type: String
+    Description: Enter the Connect Instance Arn
+    
+Resources: 
+  callersDynamoDB:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: "callers"
+      AttributeDefinitions:
+        - AttributeName: "callerPhone"
+          AttributeType: "N"
+      KeySchema:
+        - AttributeName: "callerPhone"
+          KeyType: "HASH"
+      BillingMode: "PROVISIONED"
+      ProvisionedThroughput: 
+          ReadCapacityUnits: "5"
+          WriteCapacityUnits: "5"
+  # vanityContactFlow:
+  #   Type: 'AWS::Connect::ContactFlow'
+  #   Properties:
+  #     Name: VanityNumbersContactFlow
+  #     Description: Contact Flow for Vanity Numbers of caller
+  #     InstanceArn:
+  #       Ref: ConnectArn
+  #     Type: CONTACT_FLOW
+  #     Content: "{}"
