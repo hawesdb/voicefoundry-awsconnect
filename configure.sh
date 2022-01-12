@@ -65,3 +65,5 @@ if [ ! -f $CONFIG_FILE ]; then
 fi
 echo "CONNECTARN=$connectArn" > $CONFIG_FILE
 echo "STACKNAME=$stackName" >> $CONFIG_FILE
+
+# aws ecr create-repository --repository-name hello-world --image-scanning-configuration scanOnPush=true --image-tag-mutability MUTABLE

@@ -3,15 +3,18 @@ Parameters:
   ConnectArn:
     Type: String
     Description: Enter the Connect Instance Arn
+  DockerSHA:
+    Type: String
+    Description: SHA of the docker image to facilitate function changes
     
 Resources: 
-  callersDynamoDB:
+  CallersDynamoDB:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: "callers"
       AttributeDefinitions:
         - AttributeName: "callerPhone"
-          AttributeType: "N"
+          AttributeType: "S"
       KeySchema:
         - AttributeName: "callerPhone"
           KeyType: "HASH"
@@ -19,6 +22,36 @@ Resources:
       ProvisionedThroughput: 
           ReadCapacityUnits: "5"
           WriteCapacityUnits: "5"
+  LambdaFunctionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaDynamoDBExecutionRole
+  VanityNumbersLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: VanityNumbers
+      Code:
+        ImageUri: 859530432683.dkr.ecr.us-east-1.amazonaws.com/vanity-numbers:latest
+      PackageType: Image
+      Description: Invoke the Vanity Numbers Lambda
+      Role: !GetAtt 'LambdaFunctionRole.Arn'
+      Environment:
+        Variables:
+          NLTK_DATA: /var/task/nltk_data
+      Tags:
+        - Key: "ImageSHA"
+          Value: !Ref DockerSHA
+  
   # vanityContactFlow:
   #   Type: 'AWS::Connect::ContactFlow'
   #   Properties:
