@@ -88,13 +88,17 @@ create_stack () {
     display_options
   else
     upload_lambdas
+    aws cloudformation package \
+    --s3-bucket hawesdb-voicefoundry-cloudformation-templates \
+    --template-file cloudformation.yaml \
+    --output-template-file packaged-cloudformation.yaml
+
     aws cloudformation create-stack \
     --stack-name $STACKNAME \
     --parameters \
       ParameterKey=ConnectArn,ParameterValue=$CONNECTARN \
-      ParameterKey=DockerSHA,ParameterValue=$DOCKERSHA \
-    --template-body file://cloudformation.yaml \
-    --capabilities CAPABILITY_IAM
+    --template-body file://packaged-cloudformation.yaml \
+    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
   fi
 }
 
@@ -115,9 +119,8 @@ update_stack () {
     --stack-name $STACKNAME \
     --parameters \
       ParameterKey=ConnectArn,ParameterValue=$CONNECTARN \
-      ParameterKey=DockerSHA,ParameterValue=$DOCKERSHA \
     --template-body file://cloudformation.yaml \
-    --capabilities CAPABILITY_IAM
+    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
   fi
 }
 

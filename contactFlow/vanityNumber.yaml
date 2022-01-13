@@ -1,0 +1,187 @@
+Parameters:
+  VanityLambdaArn:
+    Type: String
+    Description: The Arn of the Vanity Lambda to use
+  ConnectArn:
+    Type: String
+    Description: The Arn of the Connect instance
+    
+Resources:
+  ContactFlow:
+    Type: AWS::Connect::ContactFlow
+    Properties:
+      InstanceArn: !Ref ConnectArn
+      Name: Vanity Numbers
+      Description: Grab Customers Vanity Numbers
+      Content: !Sub '{
+        "Version":"2019-10-30",
+        "StartAction":"f413935b-1710-45c8-a5d5-d8b529ea9a3a",
+        "Metadata":{
+          "entryPointPosition":{
+            "x":17.700091996320147,"y":15
+          },
+          "snapToGrid":false,
+          "ActionMetadata": {
+            "c31d6efe-245e-420f-aca1-a6ce2a745b67":{
+              "position":{"x":668.7000919963201,"y":34},
+              "useDynamic":true
+            },
+            "037a4460-6bce-4b07-b6b8-04259382dc5b":{
+              "position":{"x":413.70009199632017,"y":36},
+              "useDynamic":false
+            },
+            "2b5ba707-3942-43df-ab3e-0dfbea52a1a6":{
+              "position":{"x":1407,"y":195}
+            },
+            "f413935b-1710-45c8-a5d5-d8b529ea9a3a":{
+              "position":{"x":184,"y":27},
+              "dynamicMetadata":{},
+              "useDynamic":false
+            },
+            "21729443-1cc2-4ca5-b965-4128d2858026":{
+              "position":{"x":904.7000919963201,"y":35},
+              "useDynamic":false
+            },
+            "b61b2daf-30a5-4aa9-a537-10a250f7a127":{
+              "position":{"x":51,"y":332},
+              "useDynamic":false
+            },
+            "699b0f2c-70f3-4ac7-b929-4a11347ee228":{
+              "position":{"x":274,"y":339},
+              "useDynamic":false
+            },
+            "31aa412e-f9f2-44f0-8915-5777b4381c15":{
+              "position":{"x":492,"y":336},
+              "useDynamic":false
+            },
+            "571424fa-0f5c-489d-b553-f0add8663106":{
+              "position":{"x":1196,"y":342},
+              "useDynamic":false
+            },
+            "cf74edf2-8e08-4f37-beb2-3ac929cf2105":{
+              "position":{"x":722,"y":338},
+              "useDynamic":false
+            },
+            "c2ada98d-afae-4808-8495-dcb3d1166883":{
+              "position":{"x":945,"y":339},
+              "useDynamic":false
+            }
+          }
+        },
+        "Actions":[
+          {
+            "Identifier":"f413935b-1710-45c8-a5d5-d8b529ea9a3a",
+            "Parameters":{
+              "LambdaFunctionARN": "${VanityLambdaArn}",
+              "InvocationTimeLimitSeconds":"3"
+            },
+            "Transitions":{
+              "NextAction":"037a4460-6bce-4b07-b6b8-04259382dc5b",
+              "Errors":[
+                {
+                  "NextAction":"2b5ba707-3942-43df-ab3e-0dfbea52a1a6",
+                  "ErrorType":"NoMatchingError"
+                }
+              ],"Conditions":[]
+            },
+            "Type":"InvokeLambdaFunction"
+          },
+          {
+            "Identifier":"037a4460-6bce-4b07-b6b8-04259382dc5b",
+            "Parameters":{
+              "Text":"Calling from number"
+            },
+            "Transitions":{
+              "NextAction":"c31d6efe-245e-420f-aca1-a6ce2a745b67","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          },
+          {
+            "Identifier":"c31d6efe-245e-420f-aca1-a6ce2a745b67",
+            "Parameters":{
+              "Text":"$.External.Customer"
+            },
+            "Transitions":{
+              "NextAction":"21729443-1cc2-4ca5-b965-4128d2858026","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          }, 
+          {
+            "Identifier":"2b5ba707-3942-43df-ab3e-0dfbea52a1a6",
+            "Type":"DisconnectParticipant",
+            "Parameters":{},"Transitions":{}
+          },
+          {
+            "Identifier":"21729443-1cc2-4ca5-b965-4128d2858026",
+            "Parameters":{
+              "Text":"5 good vanity number options are"
+            },
+            "Transitions":{
+              "NextAction":"b61b2daf-30a5-4aa9-a537-10a250f7a127","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          },
+          {
+            "Identifier":"b61b2daf-30a5-4aa9-a537-10a250f7a127",
+            "Parameters":{
+              "SSML":"<speak><prosody rate=\"slow\">$.External.VanityNumbers1</prosody></speak>"
+            },
+            "Transitions":{
+              "NextAction":"699b0f2c-70f3-4ac7-b929-4a11347ee228","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          },
+          {
+            "Identifier":"699b0f2c-70f3-4ac7-b929-4a11347ee228",
+            "Parameters":{
+              "SSML":"<speak><prosody rate=\"slow\">$.External.VanityNumbers2</prosody></speak>"
+              },
+            "Transitions":{
+              "NextAction":"31aa412e-f9f2-44f0-8915-5777b4381c15","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          },
+          {
+            "Identifier":"31aa412e-f9f2-44f0-8915-5777b4381c15",
+            "Parameters":{
+              "SSML":"<speak><prosody rate=\"slow\">$.External.VanityNumbers3</prosody></speak>"
+            },
+            "Transitions":{
+              "NextAction":"cf74edf2-8e08-4f37-beb2-3ac929cf2105","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          },
+          {
+            "Identifier":"cf74edf2-8e08-4f37-beb2-3ac929cf2105",
+            "Parameters":{
+              "SSML":"<speak><prosody rate=\"slow\">$.External.VanityNumbers4</prosody></speak>"
+            },
+            "Transitions":{
+              "NextAction":"c2ada98d-afae-4808-8495-dcb3d1166883","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          },
+          {
+            "Identifier":"c2ada98d-afae-4808-8495-dcb3d1166883",
+            "Parameters":{
+              "SSML":"<speak><prosody rate=\"slow\">$.External.VanityNumbers5</prosody></speak>"
+            },
+            "Transitions":{
+              "NextAction":"571424fa-0f5c-489d-b553-f0add8663106","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          },
+          {
+            "Identifier":"571424fa-0f5c-489d-b553-f0add8663106",
+            "Parameters":{
+              "Text":"Thank you!"
+            },
+            "Transitions":{
+              "NextAction":"2b5ba707-3942-43df-ab3e-0dfbea52a1a6","Errors":[],"Conditions":[]
+            },
+            "Type":"MessageParticipant"
+          }
+        ]
+      }'
+      State: ACTIVE
+      Type: CONTACT_FLOW

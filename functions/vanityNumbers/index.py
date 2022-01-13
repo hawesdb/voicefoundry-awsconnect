@@ -1,35 +1,47 @@
 import json
 import itertools
+import random
+import logging
+import os
+import boto3
 from nltk.corpus import brown
 
 setofwords = set([word.upper() for word in brown.words()])
+logging.getLogger().setLevel(logging.INFO)
 
-def lambda_handler(event, context):    
+def lambda_handler(event, context):
+    dynamodb = boto3.client('dynamodb')
+
     customerPhone = event['Details']['ContactData']['CustomerEndpoint']['Address']
     splitNum = split_number(customerPhone)
 
-    print('entering lambda')
     possibilities = {}
+    # set up the sections to receive the vanity portion
     for split in splitNum:
         splitString = ''.join(split)
-        if len(split) >= 2:
-            possibilities[splitString] = get_possibilities(split)
+        if len(split) >= 3:
+            possibilities[splitString] = get_possibilities(split, 5, 3)
     
+    # for number of desired vanities, create a vanity print
     vanities = []
     for results in range(0,5):
         result = ''
+
         for split in splitNum:
             splitString = ' '.join(split)
             if len(split) < 3:
-                result += '</prosody> '.join('<prosody rate="slow"/>' + string for string in splitString)
+                result += splitString + ' '
             else:
-                result += '<prosody volume="loud">' + possibilities[splitString.replace(' ','')][results] + '</prosody> '
-        vanities.append(result)
+                result += possibilities[splitString.replace(' ','')][results] + ' '
+        vanities.append(result.strip())
     
-    print('customer', customerPhone[-10:])
-    print('vanities', vanities)
-    vanities = ['<speak>' + vanity + '</speak>' for vanity in vanities]
-    print('ssml of vanities', vanities)
+    logging.info('customer %s', customerPhone[-10:])
+    logging.info('vanities %s', vanities)
+
+    dynamodb.put_item(TableName=os.environ['DB_TABLE'], Item={
+        'callerPhone': {'S': customerPhone[-10:] },
+        'vanityNumbers': {'L': [{ 'S': vanity.replace(' ', '') } for vanity in vanities] }
+    })
 
     return {
         'Customer': ' '.join(str(customerPhone[-10:])),
@@ -57,25 +69,30 @@ def split_number(number):
             split.append(currWord)
     return split
 
-def get_possibilities(number):
-    result = []
+def get_possibilities(number, desired, minText):
+    possibilities = []
     endVal = ''
+    # creating a copy of the number to not alter it
     numCopy = number[:]
-    
-    originalResult = generate_possibilities(number)
-    result.extend(originalResult['words'])
-    while len(result) < 5:
-        if len(numCopy) <= 2:
-            garbage = originalResult['garbage'][5 - len(result)]
-            result.append(garbage)
-        else:
-            possibilities = generate_possibilities(numCopy)['words']
-            newPossibilities = [elem + endVal for elem in possibilities]
-            result.extend(newPossibilities)
-            endVal = numCopy.pop() + endVal
-    return result
 
-def generate_possibilities(number):
+    # generate original
+    originalPossibilities = generate_possibilities(number, True)
+    possibilities.extend(originalPossibilities['words'])
+
+    while len(possibilities) < desired:
+        # too small of text to find words, choose from garbage
+        if len(numCopy) <= minText:
+            possibilities.append(' '.join(random.choice(originalPossibilities['garbage'])))
+        else:
+            # remove the last digit and keep track of it
+            # remove the last digit for all the possibilities too
+            endVal = numCopy.pop() + endVal
+            newPossibilities = generate_possibilities(numCopy)['words']
+            possibilities.extend([elem + endVal for elem in newPossibilities])
+
+    return possibilities
+
+def generate_possibilities(number, saveGarbage = False):
     vanityMapping = {
         '2': ['A','B','C'],
         '3': ['D','E','F'],
@@ -87,17 +104,24 @@ def generate_possibilities(number):
         '9': ['W','X','Y','Z']
     }
 
-    result = { 'words': [], 'garbage': [] }
     iterList = []
+    # generate all possible combinations
     for n in number:
         iterList.append(vanityMapping[n])
     possibilities = list(itertools.product(*iterList))
 
-    for possibility in possibilities:
-        word = ''.join(possibility)
+    return gather_valid([''.join(elem) for elem in possibilities], saveGarbage)
+
+def gather_valid (possibilities, saveGarbage = False):
+    result = {
+        'words': [],
+        'garbage': []
+    }
+
+    for word in possibilities:
         if word in setofwords:
             result['words'].append(word)
-        else:
+        if word not in setofwords and saveGarbage:
             result['garbage'].append(word)
 
     return result
