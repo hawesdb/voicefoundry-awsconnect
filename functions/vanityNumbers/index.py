@@ -1,11 +1,10 @@
 import json
 import itertools
-from nltk.corpus import words
+from nltk.corpus import brown
 
-def lambda_handler(event, context):
-    # nltk.data.path.append("/var/task/nltk_data")
-    setofwords = set(words.words())
+setofwords = set([word.upper() for word in brown.words()])
 
+def lambda_handler(event, context):    
     customerPhone = event['Details']['ContactData']['CustomerEndpoint']['Address']
     splitNum = split_number(customerPhone)
 
@@ -13,30 +12,32 @@ def lambda_handler(event, context):
     possibilities = {}
     for split in splitNum:
         splitString = ''.join(split)
-        if len(split) >= 3:
+        if len(split) >= 2:
             possibilities[splitString] = get_possibilities(split)
     
     vanities = []
     for results in range(0,5):
         result = ''
         for split in splitNum:
-            splitString = ''.join(split)
+            splitString = ' '.join(split)
             if len(split) < 3:
-                result += splitString
+                result += '</prosody> '.join('<prosody rate="slow"/>' + string for string in splitString)
             else:
-                result += possibilities[splitString][results]
+                result += '<prosody volume="loud">' + possibilities[splitString.replace(' ','')][results] + '</prosody> '
         vanities.append(result)
     
     print('customer', customerPhone[-10:])
     print('vanities', vanities)
+    vanities = ['<speak>' + vanity + '</speak>' for vanity in vanities]
+    print('ssml of vanities', vanities)
 
     return {
         'Customer': ' '.join(str(customerPhone[-10:])),
-        'VanityNumbers1': ' '.join(vanities[0]),
-        'VanityNumbers2': ' '.join(vanities[1]),
-        'VanityNumbers3': ' '.join(vanities[2]),
-        'VanityNumbers4': ' '.join(vanities[3]),
-        'VanityNumbers5': ' '.join(vanities[4])
+        'VanityNumbers1': vanities[0],
+        'VanityNumbers2': vanities[1],
+        'VanityNumbers3': vanities[2],
+        'VanityNumbers4': vanities[3],
+        'VanityNumbers5': vanities[4]
     }
 
 def split_number(number):
@@ -92,13 +93,11 @@ def generate_possibilities(number):
         iterList.append(vanityMapping[n])
     possibilities = list(itertools.product(*iterList))
 
-    print("iterating through possibilities now")
     for possibility in possibilities:
         word = ''.join(possibility)
         if word in setofwords:
             result['words'].append(word)
         else:
             result['garbage'].append(word)
-    print("finished iterating through")
 
     return result
