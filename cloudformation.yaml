@@ -5,13 +5,13 @@ Parameters:
     Description: Enter the Connect Instance Arn
     
 Resources: 
-  callersDynamoDB:
+  CallersDynamoDB:
     Type: AWS::DynamoDB::Table
     Properties:
       TableName: "callers"
       AttributeDefinitions:
         - AttributeName: "callerPhone"
-          AttributeType: "N"
+          AttributeType: "S"
       KeySchema:
         - AttributeName: "callerPhone"
           KeyType: "HASH"
@@ -19,12 +19,16 @@ Resources:
       ProvisionedThroughput: 
           ReadCapacityUnits: "5"
           WriteCapacityUnits: "5"
-  # vanityContactFlow:
-  #   Type: 'AWS::Connect::ContactFlow'
-  #   Properties:
-  #     Name: VanityNumbersContactFlow
-  #     Description: Contact Flow for Vanity Numbers of caller
-  #     InstanceArn:
-  #       Ref: ConnectArn
-  #     Type: CONTACT_FLOW
-  #     Content: "{}"
+  VanityNumberContactSubStack:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: contactFlow/vanityNumber.yaml
+      Parameters:
+        VanityLambdaArn: !GetAtt LambdasSubStack.Outputs.VanityNumbersLambda
+        ConnectArn: !Ref ConnectArn
+  LambdasSubStack:
+    Type: 'AWS::CloudFormation::Stack'
+    Properties:
+      TemplateURL: functions/lambdas.yaml
+      Parameters:
+        DynamoDBArn: !GetAtt CallersDynamoDB.Arn
