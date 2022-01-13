@@ -1,7 +1,5 @@
-import sys
-sys.path.insert(1, '../functions/vanityNumbers')
+from context import vanityNumbers
 
-from index import lambda_handler
 class TestVanityNumbers():
 
   def test_sample_phone(self):
@@ -40,4 +38,4 @@ class TestVanityNumbers():
       'Name': 'ContactFlowEvent'
     }
     
-    print(lambda_handler(caller, ''))
+    print(vanityNumbers.lambda_handler(caller, ''))

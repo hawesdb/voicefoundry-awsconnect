@@ -1,3 +1,4 @@
 .cloudformation-config
+**__pycache__**
 
 packaged-cloudformation.yaml
