@@ -35,7 +35,7 @@ fi
 #####################################################
 upload_lambdas () {
   printf "uploading lambdas"
-  docker build -t vanity-numbers functions/vanityNumbers/.
+  docker build -t vanity-numbers functions/src/vanityNumbers/.
   docker tag vanity-numbers:latest 859530432683.dkr.ecr.us-east-1.amazonaws.com/vanity-numbers:latest
   docker push 859530432683.dkr.ecr.us-east-1.amazonaws.com/vanity-numbers:latest
   DOCKERSHA=$(docker images --no-trunc --quiet 859530432683.dkr.ecr.us-east-1.amazonaws.com/vanity-numbers:latest)
