@@ -7,18 +7,17 @@ MAX_ATTEMPTS=2
 
 default_connect_arn=''
 default_ecr_arn=''
+default_template_s3=''
 default_stack_name='voicefoundry'
 
 #####################################################
 # PRINT HEADER                                      #
 #####################################################
-cat << EOF
-
+echo "
 #---------------------------------------------------#
 #                  Setup Script                     #
 #---------------------------------------------------#
-
-EOF
+"
 
 #####################################################
 # CHECK INSTALLS                                    #
@@ -53,6 +52,9 @@ if [ -f $CONFIG_FILE ]; then
   fi
   if [ $ecr_arn ]; then
     default_ecr_arn=$ecr_arn
+  fi
+  if [ $template_s3 ]; then
+    default_template_s3=$template_s3
   fi
   if [ $stack_name ]; then
     default_stack_name=$stack_name
@@ -90,9 +92,23 @@ while [ $attempts -lt $MAX_ATTEMPTS ] && [ -z $new_ecr_arn ]; do
   fi
 done
 
+attempts=0
+while [ $attempts -lt $MAX_ATTEMPTS ] && [ -z $new_template_s3 ]; do
+  [[ -z $default_template_s3 ]] && print_template_s3="NONE" || print_template_s3=$default_template_s3
+  read -e -p "Template S3 Name[$print_template_s3]: " new_template_s3
+  # No input and no default
+  if [ -z $new_template_s3 ] && [ -z $default_template_s3 ]; then
+    ((attempts=attempts+1))
+    printf "${RED}ERROR${NC} Please input a repository ARN\n\n"
+  # no input but default found
+  elif [ -z $new_template_s3 ] && [ -n $default_template_s3 ]; then
+    new_template_s3=$default_template_s3
+  fi
+done
+
 # break out of config
 if [ $attempts -eq $MAX_ATTEMPTS ]; then
-  printf "too many attempts! Quitting...\n"
+  printf "Too many attempts! Quitting...\n"
   exit
 fi
 
@@ -116,4 +132,5 @@ if [ ! -f $CONFIG_FILE ]; then
 fi
 echo "connect_arn=$new_connect_arn" > $CONFIG_FILE
 echo "ecr_arn=$new_ecr_arn" >> $CONFIG_FILE
+echo "template_s3=$new_template_s3" >> $CONFIG_FILE
 echo "stack_name=$new_stack_name" >> $CONFIG_FILE

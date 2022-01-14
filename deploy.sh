@@ -1,170 +1,208 @@
 #!/bin/bash
 RED='\033[1;31m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
 NC='\033[0m' # No Color
+BOLD=$(tput bold)
+NORMAL=$(tput sgr0)
 
-#####################################################
-# PRINT HEADER                                      #
-#####################################################
-cat << EOF
-
-#####################################################
-#                                                   #
-# DEPLOYMENT                                        #
-#                                                   #
-#####################################################
-
-EOF
+CONFIG_FILE=.cloudformation-config
 
 #####################################################
 # CONFIG CHECK                                      #
 #####################################################
-CONFIG_FILE=.cloudformation-config
 if [ -f $CONFIG_FILE ]; then
   source $CONFIG_FILE
-  if [ -z $CONNECTARN ] || [ -z $STACKNAME ]; then
-    printf "${RED}ERROR::${NC} Run the configure.sh script to setup the project\n"
+  if [ -z $connect_arn ] || [ -z $ecr_arn ] || [ -z $template_s3 ] || [ -z $stack_name ]; then
+    printf "${RED}ERROR${NC} Run the configure.sh script to setup the project\n"
     exit
   fi
 else
-  printf "${RED}ERROR::${NC} Run the configure.sh script to setup the project\n"
+  printf "${RED}ERROR${NC} Run the configure.sh script to setup the project\n"
   exit
 fi
 
 #####################################################
-# ZIP ALL LAMBDAS                                   #
+# PRINT STATUS                                      #
 #####################################################
-upload_lambdas () {
-  printf "uploading lambdas"
-  docker build -t vanity-numbers functions/src/vanityNumbers/.
-  docker tag vanity-numbers:latest 859530432683.dkr.ecr.us-east-1.amazonaws.com/vanity-numbers:latest
-  docker push 859530432683.dkr.ecr.us-east-1.amazonaws.com/vanity-numbers:latest
-  DOCKERSHA=$(docker images --no-trunc --quiet 859530432683.dkr.ecr.us-east-1.amazonaws.com/vanity-numbers:latest)
-  # python -m venv python-packages
-  # source python-packages/Scripts/activate
-  # python -m pip install --upgrade pip
-  # pip install nltk -t functions/vanityNumbers
-  # pip install regex==2019.11.1 -t functions/vanityNumbers --force-reinstall
-  # deactivate
-  # # cp -r python-packages/Lib/site-packages/joblib functions/vanityNumbers/
-  # # cp -r python-packages/Lib/site-packages/regex functions/vanityNumbers/
-  # # cp -r python-packages/Lib/site-packages/colorama functions/vanityNumbers/
-  # # cp -r python-packages/Lib/site-packages/click functions/vanityNumbers/
-  # # cp -r python-packages/Lib/site-packages/tqdm functions/vanityNumbers/
-  # # cp -r python-packages/Lib/site-packages/nltk functions/vanityNumbers/
-  # aws cloudformation package \
-  # --template cloudformation.yaml \
-  # --s3-bucket hawesdb-voicefoundry-lambdas \
-  # --output-template-file packaged-cloudformation.yaml
-}
-# build_lambdas () {
-#   cd functions
-#   for filename in *; do
-#     if [ -d $filename/ ]; then
-#       if [ -d $filename/$filename.zip ]; then
-#         rm $filename/$filename.zip
-#       fi
-#       jar -cMf $filename/$filename.zip $filename/
-#     else
-#       if [[ $filename != *.zip ]]; then
-#         if [ -d $filename.zip ]; then
-#           rm $filename.zip
-#         fi
-#         jar -cMf ${filename%.*}.zip $filename
-#       fi
-#     fi
-#   done
-#   cd ..
-# }
-
-#####################################################
-# CREATE STACK FUNCTION                             #
-#####################################################
-create_stack () {
-  printf "\nChecking if stack already exists..\n\n"
-  aws cloudformation get-stack-policy --stack-name $STACKNAME > /dev/null 2>&1
-
-  if [ $? -eq 0 ]; then
-    printf "Stack already exists ... taking you back to the options\n\n"
-    display_options
-  else
-    upload_lambdas
-    aws cloudformation package \
-    --s3-bucket hawesdb-voicefoundry-cloudformation-templates \
-    --template-file cloudformation.yaml \
-    --output-template-file packaged-cloudformation.yaml
-
-    aws cloudformation create-stack \
-    --stack-name $STACKNAME \
-    --parameters \
-      ParameterKey=ConnectArn,ParameterValue=$CONNECTARN \
-    --template-body file://packaged-cloudformation.yaml \
-    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
-  fi
-}
-
-#####################################################
-# UPDATE STACK FUNCTION                             #
-#####################################################
-update_stack () {
-  printf "\nChecking if stack already exists..\n\n"
-  aws cloudformation get-stack-policy --stack-name $STACKNAME > /dev/null 2>&1
-
+display_status() {
+  printf "Stack:  $stack_name\n"
+  stack_status=$(aws cloudformation describe-stacks --stack-name $stack_name --output yaml 2> /dev/null)
   if [ $? -ne 0 ]; then
-    printf "Stack does not exist ... taking you back to the options\n\n"
-    display_options
+    printf "Status: ${RED}DOWN${NC}\n\n"
   else
-    upload_lambdas
-    aws lambda update-function-code --function-name VanityNumbers --image-uri 859530432683.dkr.ecr.us-east-1.amazonaws.com/vanity-numbers:latest
-    aws cloudformation update-stack \
-    --stack-name $STACKNAME \
-    --parameters \
-      ParameterKey=ConnectArn,ParameterValue=$CONNECTARN \
-    --template-body file://cloudformation.yaml \
-    --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+    stack_status=$(printf "${stack_status#*StackStatus\: }" | head -1)
+    status_type=$(sed 's/.*_\(.*\)/\1/' <<< $stack_status)
+
+    if [ ${status_type^^} == 'COMPLETE' ]; then
+      stack_status=${GREEN}$stack_status${NC}
+    elif [ ${status_type^^} == 'PROGRESS' ]; then
+      stack_status=${YELLOW}$stack_status${NC}
+    else
+      stack_status=${RED}$stack_status${NC}
+    fi
+
+    printf "Status: $stack_status\n\n"
   fi
 }
 
 #####################################################
-# PRINT OPTIONS                                     #
+# GET USER INPUT                                    #
 #####################################################
-display_options () {
-  cat << EOF
-Please select an option to continue:
+get_option() {
+  echo "${BOLD}Please select an option to continue:
   1. Create Cloudformation stack
   2. Update Cloudformation stack
-  3. Exit
-EOF
-
-  ATTEMPTS=0
-  while [ -z $option ] && [ $ATTEMPTS -lt 3 ]; do
-    read -n1 -e -p "Option: " chosenOption
-    if ((chosenOption >= 1 && chosenOption <= 3)); then
-      option=$chosenOption
+  3. Exit${NORMAL}
+  "
+  attempts=0
+  while [ -z $option ] && [ $attempts -lt 2 ]; do
+    read -n1 -e -p "Option: " chosen_option
+    if ((chosen_option >= 1 && chosen_option <= 3)); then
+      option=$chosen_option
       break
     else
-      ATTEMPTS=$[$ATTEMPTS+1]
-      printf "${RED}ERROR::${NC} Please choose an option listed above\n"
+      ((attempts=attempts+1))
+      printf "\n${RED}ERROR${NC} Please choose an option listed above\n\n"
     fi
   done
-  unset chosenOption
+  unset chosen_option
 
   # Too many attempts
-  if [ $ATTEMPTS -eq 3 ]; then
-    printf "\nToo many attempts, quitting...\n"
+  if [ $attempts -eq 2 ]; then
+    printf "Too many attempts! Quitting...\n"
     exit
   fi
 
-  if [ $option ] && [ $option -eq 1 ]; then
-    unset option
-    create_stack
-  elif [ $option ] && [ $option -eq 2 ]; then
-    unset option
-    update_stack
-  elif [ $option ] && [ $option -eq 3 ]; then
-    exit
-  else
-    exit
+  # create stack
+  if [ $option ]; then
+    if [ $option -eq 1 ]; then
+      print_option="create a stack"
+    elif [ $option -eq 2 ]; then
+      print_option="update a stack"
+    else
+      exit
+    fi
+
+    read -e -p "Are you sure you want to $print_option [N/y]? " confirm_option
+    if [ -z ${confirm_option} ]; then
+      unset option
+      printf "\n---------------------------\n\n\n\n"
+      display_status
+      get_option
+    else
+      if [ ${confirm_option,,} = "yes" ] || [ ${confirm_option,,} = "y" ]; then
+        if [ $option -eq 1 ]; then
+          create_stack
+        elif [ $option -eq 2 ]; then
+          update_stack
+        fi
+      elif [ ${confirm_option,,} = "no" ] || [ ${confirm_option,,} = "n" ]; then
+        unset option
+        printf "\n---------------------------\n\n\n\n"
+        display_status
+        get_option
+      else
+        unset option
+        printf "\n${RED}ERROR${NC} Not a valid answer, taking you back\n---------------------------\n\n\n\n"
+        display_status
+        get_option
+      fi
+    fi
   fi
 }
 
-display_options
+#####################################################
+# CREATE_STACK                                      #
+#####################################################
+create_stack() {
+  printf "\nChecking if stack already exists..\n"
+  aws cloudformation get-stack-policy --stack-name $stack_name > /dev/null 2>&1
+
+  if [ $? -eq 0 ]; then
+    printf "Stack already exists ... taking you back to the options\n\n\n\n"
+    display_status
+    get_option
+  else
+    package_templates
+    build_lambda
+
+    printf "\n-- Creating the stack\n\n"
+    aws cloudformation create-stack \
+      --stack-name $stack_name \
+      --parameters \
+        ParameterKey=ConnectArn,ParameterValue=$connect_arn \
+      --template-body file://packaged-cloudformation.yaml \
+      --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+  fi
+}
+
+#####################################################
+# UPDATING_STACK                                    #
+#####################################################
+update_stack() {
+  printf "\nChecking if stack already exists..\n"
+  aws cloudformation get-stack-policy --stack-name $stack_name > /dev/null 2>&1
+
+  if [ $? -ne 0 ]; then
+    printf "Stack does not exist ... taking you back to the options\n\n\n\n"
+    display_status
+    get_option
+  else
+    package_templates
+    build_lambda
+
+    # force an update of the function code
+    aws lambda update-function-code \
+      --function-name VanityNumbers \
+      --image-uri $ecr_arn/vanity-numbers:latest
+
+    printf "\n-- Updating the stack\n\n"
+    aws cloudformation update-stack \
+      --stack-name $stack_name \
+      --parameters \
+        ParameterKey=ConnectArn,ParameterValue=$connect_arn \
+      --template-body file://packaged-cloudformation.yaml \
+      --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND
+  fi
+}
+
+#####################################################
+# PACKAGE TEMPLATES                                 #
+#####################################################
+package_templates() {
+  printf "\n-- Packaging Template\n"
+  aws cloudformation package \
+    --s3-bucket $template_s3 \
+    --template-file cloudformation.yaml \
+    --output-template-file packaged-cloudformation.yaml
+}
+
+#####################################################
+# BUILD LAMBDA                                      #
+#####################################################
+build_lambda() {
+  printf "\n-- Building lambda\n\n"
+  before_build_id=$(docker inspect --format {{.Id}} vanity-numbers)
+  docker build -t vanity-numbers functions/vanityNumbers/.
+  after_build_id=$(docker inspect --format {{.Id}} vanity-numbers)
+
+  IMAGE_META="$( aws ecr describe-images --repository-name=vanity-numbers --image-ids=imageTag=latest 2> /dev/null )"
+  # if latest tag not found or build before =/= build after
+  if [ $? -ne 0 ] || [ $before_build_id != $after_build_id ]; then
+    printf "\n-- Pushing new image to ECR\n\n"
+    docker tag vanity-numbers:latest $ecr_arn/vanity-numbers:latest
+    docker push $ecr_arn/vanity-numbers:latest
+  fi
+}
+
+#####################################################
+# MAIN                                              #
+#####################################################
+echo "
+#---------------------------------------------------#
+# DEPLOYMENT                                        #
+# --------------------------------------------------#
+"
+display_status
+get_option
